@@ -1,79 +1,76 @@
 import streamlit as st
 
-# --- Zmienna Globalna Magazynu ---
-# Globalna lista, którą modyfikujemy w callbackach. 
-# Streamlit odświeża skrypt po interakcji, 
-# więc ta lista jest ponownie ładowana, ale callbacki modyfikują ją przed ponownym renderowaniem.
-magazyn = ["Kawa", "Cukier", "Mąka", "Olej"]
-
 # --- Ustawienia Strony ---
 st.set_page_config(
-    page_title="Prosty Magazyn Bez Stanu Sesji (Poprawiony)",
+    page_title="Magazyn Streamlit (Stabilny)",
     layout="centered"
 )
 
-# --- Funkcje Callback Logiki ---
+# --- 1. Inicjalizacja Magazynu w Stanie Sesji ---
+# Jeśli 'magazyn' nie istnieje w st.session_state, tworzymy go z wartościami początkowymi.
+# Gwarantuje to, że lista nie zresetuje się po interakcjach użytkownika.
+if 'magazyn' not in st.session_state:
+    st.session_state.magazyn = ["Mleko", "Chleb", "Jajka", "Ser"]
 
-def dodaj_callback():
-    """Obsługuje dodawanie towaru po kliknięciu przycisku 'Dodaj do Magazynu'."""
-    # Dostęp do wartości pola tekstowego poprzez st.session_state (klucz 'input_dodawanie')
-    nowy_towar = st.session_state.input_dodawanie 
+# --- Funkcje Logiki (Callbacki) ---
+
+def dodaj_towar():
+    """Dodaje towar pobrany z inputu do listy w stanie sesji."""
+    # Wartość jest pobierana z widżetu tekstowego za pomocą jego klucza
+    nowy_towar = st.session_state.input_dodawanie.strip().capitalize()
     
-    towar_do_dodania = nowy_towar.strip().capitalize()
-    
-    if towar_do_dodania:
-        if towar_do_dodania not in magazyn:
-            magazyn.append(towar_do_dodania)
-            st.success(f"Dodano: {towar_do_dodania}")
-            # Kluczowy moment: Wyczyść pole tekstowe (stan sesji) wewnątrz callbacka!
+    if nowy_towar:
+        if nowy_towar not in st.session_state.magazyn:
+            st.session_state.magazyn.append(nowy_towar)
+            st.success(f"Dodano: {nowy_towar}")
+            # Czyścimy pole wejściowe po pomyślnym dodaniu
             st.session_state.input_dodawanie = "" 
         else:
-            st.warning(f"Towar '{towar_do_dodania}' jest już w magazynie.")
+            st.warning(f"Towar '{nowy_towar}' jest już w magazynie.")
     else:
         st.error("Wprowadź poprawną nazwę towaru.")
 
-def usun_callback():
-    """Usuwa wybrany towar z listy magazyn."""
-    # Dostęp do wartości selectboxa poprzez st.session_state (klucz 'select_usuwanie')
-    towar = st.session_state.select_usuwanie
+def usun_towar():
+    """Usuwa wybrany towar z listy w stanie sesji."""
+    # Wartość jest pobierana z selectboxa za pomocą jego klucza
+    towar_do_usuniecia = st.session_state.select_usuwanie
     
-    if towar in magazyn:
-        magazyn.remove(towar)
-        st.success(f"Usunięto: {towar}")
-    else:
-        st.error(f"Błąd: Nie znaleziono towaru: {towar}")
+    if towar_do_usuniecia in st.session_state.magazyn:
+        st.session_state.magazyn.remove(towar_do_usuniecia)
+        st.success(f"Usunięto: {towar_do_usuniecia}")
+    # Nie jest potrzebny 'else', ponieważ selectbox pokazuje tylko istniejące elementy.
 
 
 # --- Interfejs Użytkownika Streamlit ---
 
-st.title("🛒 Prosty Magazyn (Bez Stanu Sesji - POPRAWIONY)")
-st.markdown("Użycie funkcji callback eliminuje błędy związane z modyfikacją stanu sesji.")
+st.title("🛒 Stabilny Magazyn Streamlit")
+st.markdown("Aplikacja do zarządzania towarem z wykorzystaniem trwałego stanu sesji.")
 
 # --- Sekcja: Dodawanie Towaru ---
 st.header("➕ Dodaj Nowy Towar")
 with st.form("form_dodawania"):
-    # Klucz 'input_dodawanie' jest niezbędny do dostępu w callbacku
+    # Klucz 'input_dodawanie' pozwala na dostęp do wartości w callbacku i jej czyszczenie
     st.text_input("Nazwa Towaru", key="input_dodawanie")
     
-    # Przycisk, który wywołuje funkcję dodaj_callback po kliknięciu
-    st.form_submit_button("Dodaj do Magazynu", on_click=dodaj_callback)
+    # Przycisk wywołuje funkcję dodaj_towar
+    st.form_submit_button("Dodaj do Magazynu", on_click=dodaj_towar)
 
 
 # --- Sekcja: Usuwanie Towaru ---
 st.header("➖ Usuń Towar")
 
-if magazyn:
-    # Klucz 'select_usuwanie' jest niezbędny do dostępu w callbacku
+if st.session_state.magazyn:
+    # Selectbox zawsze odzwierciedla aktualną listę magazyn
     st.selectbox(
         "Wybierz Towar do Usunięcia", 
-        magazyn,
+        st.session_state.magazyn,
         key="select_usuwanie"
     )
     
-    # Przycisk, który wywołuje funkcję usun_callback po kliknięciu
+    # Przycisk wywołuje funkcję usun_towar
     st.button(
         "Usuń Wybrany Towar", 
-        on_click=usun_callback
+        on_click=usun_towar
     )
 else:
     st.info("Magazyn jest pusty, nie można nic usunąć.")
@@ -82,11 +79,12 @@ else:
 # --- Sekcja: Stan Magazynu ---
 st.header("📊 Aktualny Stan Magazynu")
 
-if magazyn:
-    st.table({"Lp.": list(range(1, len(magazyn) + 1)), "Nazwa Towaru": magazyn})
-    st.metric("Całkowita liczba towarów", len(magazyn))
+if st.session_state.magazyn:
+    # Wyświetlenie jako tabela
+    magazyn_df = st.session_state.magazyn
+    st.table({"Lp.": list(range(1, len(magazyn_df) + 1)), "Nazwa Towaru": magazyn_df})
+    st.metric("Całkowita liczba towarów", len(st.session_state.magazyn))
 else:
     st.info("Magazyn jest obecnie pusty.")
 
 st.markdown("---")
-st.markdown("Aplikacja stworzona przy użyciu **Streamlit**.")
